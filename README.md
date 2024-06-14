@@ -38,7 +38,7 @@ python main_train.py
 
 # Inference
 
-- **Step 1.** The breakpoints of the model training will be saved in the `runs` folder. Select the absolute path of the model breakpoint to be inferred and copy it to the `checkpoint_path` field in the `config.py` file.
+- **Step 1.** The breakpoints of the model training will be saved in the `runs` directory. Select the absolute path of the model breakpoint to be inferred and copy it to the `checkpoint_path` field in the `config.py` file.
 - **Step 2.** In the `main_test.py` file, modify the statement `os.environ['CUDA_VISIBLE_DEVICES']` to select the GPU you want to use.
 - **Step 3.** Execute the command to perform inference
 ```
