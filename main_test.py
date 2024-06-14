@@ -5,12 +5,12 @@ import numpy as np
 import SimpleITK as sitk
 from config import MicroadenomaConfig
 from utils.logger import Logger
-from model.model import PMiASeg
+from model.model import AEPformer
 from utils.data_utils import get_metrics, train_validate_split, NormalizationV1
 from matplotlib import pyplot as plt
 import pickle as pkl
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     model_list = []
     for ckpt_path in config.checkpoint_path:
         model_hyper_param = mylogger.load_from_pkl(os.path.dirname(ckpt_path))
-        model = PMiASeg(frame_num=model_hyper_param["frame_num"],
+        model = AEPformer(frame_num=model_hyper_param["frame_num"],
                         img_shape=model_hyper_param["patch_size"],
                         output_channel=model_hyper_param["n_class"],
                         resnet_depth=model_hyper_param["resnet_depth"],
@@ -137,29 +137,7 @@ if __name__ == "__main__":
         "================================== save =================================="
         with open(os.path.join(mylogger.plt_dir, "{}.pkl".format(patient_num )), 'wb') as f:
             pkl.dump(predict, f)
-            
-        # # 展示结果
-        # for idx in range(img_arr.shape[2]):
-        #     plt.subplot(1, 3, 1)
-        #     plt.title("image")
-        #     plt.imshow(img_arr[0, -1, idx, :, :].data.cpu())
-        #     plt.xticks([])
-        #     plt.yticks([])
 
-        #     plt.subplot(1, 3, 2)
-        #     plt.title("label")
-        #     plt.imshow(target[idx, x_start:x_end + 1, y_start:y_end + 1], vmin=0, vmax=2)
-        #     plt.xticks([])
-        #     plt.yticks([])
-
-        #     plt.subplot(1, 3, 3)
-        #     plt.title("pred")
-        #     plt.imshow(predict[idx, x_start:x_end + 1, y_start:y_end + 1], vmin=0, vmax=2)
-        #     plt.xticks([])
-        #     plt.yticks([])
-
-        #     plt.suptitle(f"{patient_num} slice {str(idx)}")
-        #     plt.savefig(os.path.join(mylogger.plt_dir, "{}.png".format(patient_num + "_slice_" + str(idx))))
 
         '''============================== calculate metrics =============================='''
         assert predict.dtype == target.dtype

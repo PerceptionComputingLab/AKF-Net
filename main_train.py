@@ -5,7 +5,7 @@ import numpy as np
 import torch.utils.data as dataloader
 from config import MicroadenomaConfig
 from utils.logger import Logger
-from model.model import PMiASeg
+from model.model import AEPformer
 from tqdm import tqdm
 from utils.data_utils import train_validate_split, pre_processingV2, NormalizationV2, get_metrics_dice, MicroadenomaDataset
 from monai.losses import DiceFocalLoss, DiceCELoss
@@ -13,7 +13,7 @@ from utils.utils import DiceLogHDLoss, FocalLogHDLoss
 
 import utils.augment as aug
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     train_loader = dataloader.DataLoader(dataset_train, batch_size=config.batch_size)
     val_loader = dataloader.DataLoader(dataset_val, batch_size=1)
 
-    model = PMiASeg(frame_num=config.frame_num,
+    model = AEPformer(frame_num=config.frame_num,
                     img_shape=config.patch_size,
                     output_channel=config.n_class,
                     resnet_depth=config.resnet_depth,
@@ -73,10 +73,7 @@ if __name__ == "__main__":
                     dropout=config.dropout).to(device)
 
     criterion = DiceFocalLoss(include_background=False, to_onehot_y=True, softmax=True)
-    # criterion = DiceCELoss(include_background=False,to_onehot_y=True, softmax=True)
-    # criterion = FocalLogHDLoss(include_background=False,to_onehot_y=True, softmax=True)
-    # criterion = DiceLogHDLoss(include_background=False,to_onehot_y=True, softmax=True)
-
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr, weight_decay=1e-5, betas=(0.97, 0.999))
     scheduler_lr = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.lr_step_size, gamma=config.lr_ratio)
 
