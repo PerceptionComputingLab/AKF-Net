@@ -1,6 +1,7 @@
 class MicroadenomaConfig(object):
     '''dataset'''
-    dataset_path = "./dataset/sample_data"
+    # dataset_path = "./dataset/sample_data"
+    dataset_path = "/home/lyf/gitcode/PMiA-Seg/dataset/microadenoma_cor"
     frame_num = 7
     patch_size =  [5, 128, 128]
     crop_size =  [128, 128]
@@ -17,10 +18,10 @@ class MicroadenomaConfig(object):
     lr = 0.001
     lr_step_size = 150
     lr_ratio = 0.5
-    n_epoch = 1 # 800
-    num_batches_per_epoch = 5 #50
+    n_epoch = 800 # 800
+    num_batches_per_epoch = 50
     num_validation_batches_per_epoch = 50
-    batch_size = 1
+    batch_size = 2
     save_step = 10
     val_step = 1
     '''testing'''

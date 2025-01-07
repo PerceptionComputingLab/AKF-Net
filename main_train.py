@@ -13,7 +13,7 @@ from utils.utils import DiceLogHDLoss, FocalLogHDLoss
 
 import utils.augment as aug
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

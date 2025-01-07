@@ -236,6 +236,7 @@ class AEPformer(nn.Module):
             d_seq.append(F.layer_norm(d_i, normalized_shape=d_i.shape[1:]).unsqueeze(1))
         d_seq = torch.concat(d_seq, dim=1)  # (bs, frame_num-1, channel, img_shape[0], feature_dim, feature_dim)
 
+        # Dynamic Recycle Graph Learning
         d_prime_seq = self.DRGL(d_seq)    # (bs, frame_num-1, channel, img_shape[0], feature_dim, feature_dim)
 
         d_prime_seq = torch.reshape(d_prime_seq, (batch_size, frame_num-1, self.feature_shape[0], -1))
@@ -248,6 +249,7 @@ class AEPformer(nn.Module):
             f_hat_seq.append(f_hat_i.unsqueeze(1))  
         f_hat_seq = torch.concat(f_hat_seq, dim=1)     # (bs, frame_num, channel, img_shape[0]*feature_dim*feature_dim)
 
+        # Adaptive Static-Dynamic Blending
         f_prime_seq = []
         for i in range(0, frame_num):
             f_seq_i = f_seq[:, i, :, :]
