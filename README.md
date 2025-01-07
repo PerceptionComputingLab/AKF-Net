@@ -1,6 +1,6 @@
-# AEPformer
+# AKF-Net
 
-AEPformer: Asynchronous Enhancement Pattern guided disentangled Transformer for pituitary gland and pituitary microadenoma segmentation in DCE-MRI
+AKF-Net: Anatomic-Kinetic Fusion Network for Pituitary Gland and Microadenoma Segmentation in Multi-phase DCE-MRI
 
 # Requirements
 

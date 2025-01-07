@@ -1,8 +1,12 @@
 import copy
+from this import d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import os
+
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 class SingleDeconv3DBlock(nn.Module):
     def __init__(self, in_planes, out_planes):
@@ -212,16 +216,40 @@ class Transformer(nn.Module):
             input: (bs, frame_num, channel, feature_dim*feature_dim*feature_dim)
             output: [(bs, frame_num, channel, feature_dim*feature_dim*feature_dim),...]
         '''
-        extract_layers = []
+        extract_f_layers = []
+        extract_d_layers = []
+
         f_prime_seq = self.embeddings_f(f_prime_seq)    # (bs, channel, frame_num, feature_dim*feature_dim*feature_dim)
         d_prime_seq = self.embeddings_d(d_prime_seq)    # (bs, channel, frame_num, feature_dim*feature_dim*feature_dim)
 
         for depth, layer_block in enumerate(self.layer):
             f_prime_seq, d_prime_seq = layer_block(f_prime_seq, d_prime_seq)
             if depth + 1 in self.extract_layers:
-                extract_layers.append(f_prime_seq.transpose(1, 2))
+                extract_f_layers.append(f_prime_seq.transpose(1, 2))
+                extract_d_layers.append(d_prime_seq.transpose(1, 2))
         
-        return extract_layers
+        return extract_f_layers, extract_d_layers
+
+
+class AdaptiveAnatomicKineticFusion(nn.Module):
+    """
+    compute Adaptive Attention Dual-Modal Fusion 
+    """
+
+    def __init__(self, dk):
+        super(AdaptiveAnatomicKineticFusion, self).__init__()
+        self.softmax = nn.Softmax(dim=-1)
+        self.linear1 =  nn.Linear(dk, dk)
+        self.linear2 =  nn.Linear(dk, dk, bias=False)
+
+    def forward(self, feature_f, feature_d):
+        mu_ct = self.linear2(torch.tanh(self.linear1(feature_f))) # batch*dk
+        mu_wsi = self.linear2(torch.tanh(self.linear1(feature_d))) # batch*dk
+        mu_combine = torch.stack((mu_ct, mu_wsi), dim=-1) # batch*dk*2
+        weight = self.softmax(mu_combine)
+        weighted_sum_score = feature_f*weight[..., 0] + feature_d+weight[..., 1]
+
+        return weighted_sum_score
 
 
 class GADModule(nn.Module):
@@ -236,7 +264,7 @@ class GADModule(nn.Module):
     15   [3, 7, 11, 15]
     16   [4, 8, 12, 16]
     '''
-    def __init__(self, frame_num, input_channel, feature_dim, output_channel, num_layers=14, dropout=0.1, extract_layers=[3, 6, 10, 14]):
+    def __init__(self, frame_num, input_channel, feature_dim, output_channel, num_layers=12, dropout=0.1, extract_layers=[3, 6, 9, 12]):
         super().__init__()
         self.frame_num = frame_num
         self.input_channel = input_channel
@@ -244,6 +272,8 @@ class GADModule(nn.Module):
         self.embed_dim = feature_dim[0] * feature_dim[1] * feature_dim[2]
         # Transformer Encoder
         self.transformer = Transformer(self.frame_num, self.embed_dim, num_layers, dropout, extract_layers)
+
+        self.fusion = AdaptiveAnatomicKineticFusion(self.embed_dim)
 
         # U-Net Decoder
         self.decoder0 = nn.Sequential(
@@ -296,9 +326,38 @@ class GADModule(nn.Module):
         '''
             input: (bs, frame_num, channel, img_shape[0]*feature_dim*feature_dim)
         '''
-        z = self.transformer(f_prime_seq, d_prime_seq)
+        z_f, z_d = self.transformer(f_prime_seq, d_prime_seq)
 
-        z0, z3, z6, z9, z12 = f_prime_seq, *z
+        z0_f, z3_f, z6_f, z9_f, z12_f = f_prime_seq, *z_f
+        z0_d, z3_d, z6_d, z9_d, z12_d = d_prime_seq, *z_d
+
+        B, T, C, D = z0_f.size()
+
+        z0_f = z0_f.reshape(-1, D)
+        z0_d = z0_d.reshape(-1, D)
+        z0 = self.fusion(z0_f, z0_d)
+        z0 = z0.reshape(B, T, C, D)
+
+        z3_f = z3_f.reshape(-1, D)
+        z3_d = z3_d.reshape(-1, D)
+        z3 = self.fusion(z3_f, z3_d)
+        z3 = z3.reshape(B, T, C, D)
+
+        z6_f = z6_f.reshape(-1, D)
+        z6_d = z6_d.reshape(-1, D)
+        z6 = self.fusion(z6_f, z6_d)
+        z6 = z6.reshape(B, T, C, D)
+
+        z9_f = z9_f.reshape(-1, D)
+        z9_d = z9_d.reshape(-1, D)
+        z9 = self.fusion(z9_f, z9_d)
+        z9 = z9.reshape(B, T, C, D)
+
+        z12_f = z12_f.reshape(-1, D)
+        z12_d = z12_d.reshape(-1, D)
+        z12 = self.fusion(z12_f, z12_d)
+        z12 = z12.reshape(B, T, C, D)
+
         z0 = torch.mean(z0, dim=1, keepdim=False).reshape(-1, self.input_channel, self.feature_dim[0], self.feature_dim[1], self.feature_dim[2])
         z3 = torch.mean(z3, dim=1, keepdim=False).reshape(-1, self.input_channel, self.feature_dim[0], self.feature_dim[1], self.feature_dim[2])
         z6 = torch.mean(z6, dim=1, keepdim=False).reshape(-1, self.input_channel, self.feature_dim[0], self.feature_dim[1], self.feature_dim[2])
@@ -315,3 +374,27 @@ class GADModule(nn.Module):
         z0 = self.decoder0(z0)
         output = self.decoder0_header(torch.cat([z0, z3], dim=1))
         return output
+
+
+# if __name__ == '__main__':
+#     bath_size = 1
+#     # feature_dim = 8
+#     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     # net = AdaptiveAttentionFusion(feature_dim).to(device)
+#     # enhanced_feature_CT = torch.rand([bath_size, feature_dim]).to(device)
+#     # enhanced_feature_WSI = torch.rand([bath_size, feature_dim]).to(device)
+#     # out = net(enhanced_feature_CT, enhanced_feature_WSI)
+#     # print(out.size())
+
+#     frame_num = 7
+#     input_channel = 16
+#     feature_dim = 8
+#     img_shape = [input_channel, 5*feature_dim*feature_dim]
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     net = GADModule(frame_num=frame_num, input_channel=input_channel, feature_dim=[5, feature_dim, feature_dim], output_channel=3).to(device)
+#     f_prime_seq = torch.rand([bath_size, frame_num] + img_shape).to(device)
+#     d_prime_seq = torch.rand([bath_size, frame_num] + img_shape).to(device)
+#     out = net(f_prime_seq, d_prime_seq)
+#     print(out.size())
+
+    
